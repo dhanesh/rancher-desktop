@@ -154,6 +154,7 @@ export default Vue.extend({
           'settings-write',
           { kubernetes: { containerEngine: desiredEngine } },
         );
+        ipcRenderer.send('log-renderer', 'onChangeEngine');
       } catch (err) {
         console.log('invoke settings-write failed: ', err);
       }

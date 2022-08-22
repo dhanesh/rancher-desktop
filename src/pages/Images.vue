@@ -25,6 +25,23 @@ import { State as K8sState } from '@/backend/backend';
 import Images from '@/components/Images.vue';
 import { defaultSettings } from '@/config/settings';
 
+// Questions: why does invoke not work, but log-debug-renderer call works fine
+//            how to make invokeWithDebugLog() common to all vue files
+
+// This function would be my first choice.  It would allow me to just change the
+// interesting calls from ipcRenderer.invoke() to ipcRenderer.invokeWithDebugLog() 
+ipcRenderer.invokeWithDebugLog = function(channel, ...args) {
+  ipcRenderer.invoke(channel, args);    // this call seems to lock up
+  ipcRenderer.send('log-debug-renderer', [channel, args]);  // this call works fine
+}
+
+// This function is just a test to see if the problem was related to overriding
+// IpcRenderer, but it acts the same as the above
+function invokeWithDebugLog(renderer, channel, ...args) {
+  renderer.invoke(channel, args);
+  renderer.send('log-debug-renderer', [channel, args]);
+}
+
 export default {
   components: { Images },
   data() {
@@ -131,19 +148,20 @@ export default {
         const K8S_NAMESPACE = 'k8s.io';
         const defaultNamespace = this.imageNamespaces.includes(K8S_NAMESPACE) ? K8S_NAMESPACE : this.imageNamespaces[0];
 
-        ipcRenderer.invoke('settings-write',
+        ipcRenderer.invokeWithDebugLog('settings-write',
           { images: { namespace: defaultNamespace } } );
       }
     },
     onShowAllImagesChanged(value) {
       if (value !== this.settings.images.showAll) {
-        ipcRenderer.invoke('settings-write',
+        ipcRenderer.invokeWithDebugLog('settings-write',
           { images: { showAll: value } } );
       }
     },
     onChangeNamespace(value) {
       if (value !== this.settings.images.namespace) {
-        ipcRenderer.invoke('settings-write',
+        // invokeWithDebugLog(ipcRenderer, 'settings-write',  // test only
+        ipcRenderer.invokeWithDebugLog('settings-write',
           { images: { namespace: value } } );
       }
     },

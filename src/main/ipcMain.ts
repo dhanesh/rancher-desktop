@@ -1,6 +1,7 @@
 import Electron from 'electron';
 
 import { Log } from '@/utils/logging';
+import Logging from '@/utils/logging';
 
 // Intended to be passed to the replacer parameter in a JSON.stringify
 // call. Should rectify any circular references that the object you are
@@ -49,3 +50,25 @@ export function getIpcMainProxy(logger: Log) {
     },
   });
 }
+
+// Renderer front-end logging
+
+const rendererLog = Logging.renderer;
+
+Electron.ipcMain.on('log-renderer', (event, args: any[]) => {
+  if (args.length > 1) {
+    const printableArgs = makeArgsPrintable(args.slice(1));
+    rendererLog.log( args[0], `:  ${ printableArgs.join(', ') }` );
+  } else {
+    rendererLog.log( args[0], ":" );
+  }
+});
+
+Electron.ipcMain.on('log-debug-renderer', (event, args: any[]) => {
+  if (args.length > 1) {
+    const printableArgs = makeArgsPrintable(args.slice(1));
+    rendererLog.debug( args[0], `:  ${ printableArgs.join(', ') }` );
+  } else {
+    rendererLog.debug( args[0], ":" );
+  }
+});
