@@ -25,21 +25,9 @@ import { State as K8sState } from '@/backend/backend';
 import Images from '@/components/Images.vue';
 import { defaultSettings } from '@/config/settings';
 
-// Questions: why does invoke not work, but log-debug-renderer call works fine
-//            how to make invokeWithDebugLog() common to all vue files
-
-// This function would be my first choice.  It would allow me to just change the
-// interesting calls from ipcRenderer.invoke() to ipcRenderer.invokeWithDebugLog() 
 ipcRenderer.invokeWithDebugLog = function(channel, ...args) {
-  ipcRenderer.invoke(channel, args);    // this call seems to lock up
-  ipcRenderer.send('log-debug-renderer', [channel, args]);  // this call works fine
-}
-
-// This function is just a test to see if the problem was related to overriding
-// IpcRenderer, but it acts the same as the above
-function invokeWithDebugLog(renderer, channel, ...args) {
-  renderer.invoke(channel, args);
-  renderer.send('log-debug-renderer', [channel, args]);
+  ipcRenderer.send('log-debug-renderer', [channel, args]);
+  return ipcRenderer.invoke(channel, ...args);
 }
 
 export default {
@@ -133,7 +121,7 @@ export default {
     ipcRenderer.send('settings-read');
   },
   beforeDestroy() {
-    ipcRenderer.invoke('images-mounted', false);
+    ipcRenderer.invokeWithDebugLog('images-mounted', false);
     ipcRenderer.removeAllListeners('images-mounted');
     ipcRenderer.removeAllListeners('images-changed');
   },
