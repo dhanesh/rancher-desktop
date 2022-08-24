@@ -27,8 +27,9 @@ import { defaultSettings } from '@/config/settings';
 
 ipcRenderer.invokeWithDebugLog = function(channel, ...args) {
   ipcRenderer.send('log-debug-renderer', [channel, args]);
+
   return ipcRenderer.invoke(channel, ...args);
-}
+};
 
 export default {
   components: { Images },

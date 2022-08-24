@@ -57,17 +57,19 @@ const rendererLog = Logging.renderer;
 Electron.ipcMain.on('log-renderer', (event, args: any[]) => {
   if (args.length > 1) {
     const printableArgs = makeArgsPrintable(args.slice(1));
+
     rendererLog.log( args[0], `:  ${ printableArgs.join(', ') }` );
   } else {
-    rendererLog.log( args[0], ":" );
+    rendererLog.log( args[0], ':' );
   }
 });
 
 Electron.ipcMain.on('log-debug-renderer', (event, args: any[]) => {
   if (args.length > 1) {
     const printableArgs = makeArgsPrintable(args.slice(1));
+
     rendererLog.debug( args[0], `:  ${ printableArgs.join(', ') }` );
   } else {
-    rendererLog.debug( args[0], ":" );
+    rendererLog.debug( args[0], ':' );
   }
 });
