@@ -76,10 +76,21 @@ let pendingRestartContext: CommandWorkerInterface.CommandContext | undefined;
 
 let httpCommandServer: HttpCommandServer|null = null;
 const httpCredentialHelperServer = new HttpCredentialHelperServer();
+const lockInfo = { otherPid: -1 };
 
-if (!Electron.app.requestSingleInstanceLock()) {
+console.log(`QQQ: ${ process.pid }: -Electron.app.requestSingleInstanceLock()`);
+if (!Electron.app.requestSingleInstanceLock(lockInfo)) {
+  console.log(`QQQ: ${ process.pid }: +Electron.app.requestSingleInstanceLock(): failed to get the lock`);
   gone = true;
-  process.exit(201);
+  Electron.app.quit();
+  // process.exit(201);
+  console.log(`QQQ: ${ process.pid }: +Electron.app.requestSingleInstanceLock(): should have exited by now`);
+}
+console.log(`QQQ: ${ process.pid }: +Electron.app.requestSingleInstanceLock(): got the lock, lockInfo.otherPid: ${ lockInfo.otherPid }`);
+if (lockInfo.otherPid !== -1) {
+  console.log(`Other process (${ lockInfo.otherPid }) is running.`);
+  gone = true;
+  Electron.app.quit();
 }
 
 // Scheme must be registered before the app is ready
@@ -312,9 +323,15 @@ function setupImageProcessor() {
   window.send('k8s-current-engine', cfg.kubernetes.containerEngine);
 }
 
-Electron.app.on('second-instance', async() => {
+Electron.app.on('second-instance', async(_event, _commandLine, _workingDirectory, additionalData: any) => {
   // Someone tried to run another instance of Rancher Desktop,
   // reveal and focus this window instead.
+  console.log(`QQQ: Got a second-instance event, _commandLine: ${ _commandLine }, _workingDirectory: ${ _workingDirectory }, additionalData: ${ additionalData }`);
+  if (additionalData) {
+    additionalData.otherPid = process.pid;
+  } else {
+    console.log(`QQQ: additionalData not an object`);
+  }
   await protocolRegistered;
   window.openMain();
 });
