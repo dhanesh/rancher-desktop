@@ -638,6 +638,7 @@ test.describe('Command server', () => {
           stdout: '',
         });
         expect(stderr).toContain('Usage:');
+        expect(stderr.split(/\n/).filter(line => /^\s+--/.test(line)).length).toBe(30);
       });
 
       test('complains when option value missing', async() => {

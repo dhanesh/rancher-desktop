@@ -20,26 +20,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
+	"github.com/rancher-sandbox/rancher-desktop/src/go/rdctl/pkg/options/generated"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
-
-type serverSettings struct {
-	Kubernetes struct {
-		ContainerEngine *string `json:"containerEngine,omitempty"`
-		Enabled         *bool   `json:"enabled,omitempty"`
-		Version         *string `json:"version,omitempty"`
-		Options         struct {
-			Flannel *bool `json:"flannel,omitempty"`
-		} `json:"options,omitempty"`
-	} `json:"kubernetes,omitempty"`
-}
-
-var specifiedSettings struct {
-	ContainerEngine string
-	Enabled         bool
-	Version         string
-	Flannel         bool
-}
 
 // setCmd represents the set command
 var setCmd = &cobra.Command{
@@ -54,47 +39,52 @@ var setCmd = &cobra.Command{
 	},
 }
 
-func updateCommonStartAndSetCommands(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&specifiedSettings.ContainerEngine, "container-engine", "", "Set engine to containerd or moby (aka docker).")
-	cmd.Flags().BoolVar(&specifiedSettings.Enabled, "kubernetes-enabled", false, "Control whether kubernetes runs in the backend.")
-	cmd.Flags().StringVar(&specifiedSettings.Version, "kubernetes-version", "", "Choose which version of kubernetes to run.")
-	cmd.Flags().BoolVar(&specifiedSettings.Flannel, "flannel-enabled", true, "Control whether flannel is enabled. Use to disable flannel so you can install your own CNI.")
-}
-
 func init() {
 	rootCmd.AddCommand(setCmd)
-	updateCommonStartAndSetCommands(setCmd)
+	options.UpdateCommonStartAndSetCommands(setCmd)
+	updateLegacyStartAndSetCommands(setCmd)
+}
+
+func updateLegacyStartAndSetCommands(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&options.SpecifiedSettings.Kubernetes.ContainerEngine, "container-engine", "", "Set engine to containerd or moby (aka docker).")
+	cmd.Flags().BoolVar(&options.SpecifiedSettings.Kubernetes.Enabled, "kubernetes-enabled", false, "Control whether kubernetes runs in the backend.")
+	cmd.Flags().StringVar(&options.SpecifiedSettings.Kubernetes.Version, "kubernetes-version", "", "Choose which version of kubernetes to run.")
+	cmd.Flags().BoolVar(&options.SpecifiedSettings.Kubernetes.Options.Flannel, "flannel-enabled", true, "Control whether flannel is enabled. Use to disable flannel so you can install your own CNI.")
+}
+
+func updateLegacyFieldsForJSON(flags *pflag.FlagSet) bool {
+	changedSomething := false
+	if flags.Changed("container-engine") {
+		options.SpecifiedSettingsForJSON.Kubernetes.ContainerEngine = &options.SpecifiedSettings.Kubernetes.ContainerEngine
+		changedSomething = true
+	}
+	if flags.Changed("kubernetes-enabled") {
+		options.SpecifiedSettingsForJSON.Kubernetes.Enabled = &options.SpecifiedSettings.Kubernetes.Enabled
+		changedSomething = true
+	}
+	if flags.Changed("kubernetes-version") {
+		options.SpecifiedSettingsForJSON.Kubernetes.Version = &options.SpecifiedSettings.Kubernetes.Version
+		changedSomething = true
+	}
+	if flags.Changed("flannel-enabled") {
+		options.SpecifiedSettingsForJSON.Kubernetes.Options.Flannel = &options.SpecifiedSettings.Kubernetes.Options.Flannel
+		changedSomething = true
+	}
+	return changedSomething
 }
 
 func doSetCommand(cmd *cobra.Command) error {
-	var currentSettings serverSettings
-	changedSomething := false
-
-	if cmd.Flags().Changed("container-engine") {
-		currentSettings.Kubernetes.ContainerEngine = &specifiedSettings.ContainerEngine
-		changedSomething = true
-	}
-	if cmd.Flags().Changed("kubernetes-enabled") {
-		currentSettings.Kubernetes.Enabled = &specifiedSettings.Enabled
-		changedSomething = true
-	}
-	if cmd.Flags().Changed("kubernetes-version") {
-		currentSettings.Kubernetes.Version = &specifiedSettings.Version
-		changedSomething = true
-	}
-	if cmd.Flags().Changed("flannel-enabled") {
-		currentSettings.Kubernetes.Options.Flannel = &specifiedSettings.Flannel
-		changedSomething = true
-	}
-
-	if !changedSomething {
+	changedASharedField := options.UpdateFieldsForJSON(cmd.Flags())
+	changedALegacyField := updateLegacyFieldsForJSON(cmd.Flags())
+	if !changedASharedField && !changedALegacyField {
 		return fmt.Errorf("%s command: no settings to change were given", cmd.Name())
 	}
 	cmd.SilenceUsage = true
-	jsonBuffer, err := json.Marshal(currentSettings)
+	jsonBuffer, err := json.Marshal(options.SpecifiedSettingsForJSON)
 	if err != nil {
 		return err
 	}
+
 	result, err := processRequestForUtility(doRequestWithPayload("PUT", versionCommand("", "settings"), bytes.NewBuffer(jsonBuffer)))
 	if err != nil {
 		return err
