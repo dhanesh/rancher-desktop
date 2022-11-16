@@ -252,6 +252,7 @@ components:
           properties:
             version:
               type: string
+              usage: Choose which version of kubernetes to run.
             memoryInGB:
               type: integer
               minimum: 1
@@ -263,8 +264,10 @@ components:
             containerEngine:
               type: string
               enum: ['containerd', 'moby', 'docker']
+              usage: Set engine to containerd or moby (aka docker).
             enabled:
               type: boolean
+              usage: Control whether kubernetes runs in the backend.
             WSLIntegrations:
               type: object
               additionalProperties: true
@@ -275,6 +278,7 @@ components:
                   type: boolean
                 flannel:
                   type: boolean
+                  usage: Control whether flannel is enabled. Use to disable flannel so you can install your own CNI.
             suppressSudo:
               type: boolean
             hostResolver:

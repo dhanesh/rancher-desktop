@@ -276,6 +276,7 @@ var SpecifiedSettings serverSettings
     for (const innerName in properties) {
       this.walkProperty(`${ propertyName }.${ innerName }`, properties[innerName], innerSetting);
     }
+
     serverSettings[lastUCName] = { type: innerSetting, directive: `json:"${ lastLCName },omitempty"` };
   }
 
@@ -286,6 +287,7 @@ var SpecifiedSettings serverSettings
   ): void {
     this.updateLeaf(propertyName, capitalizeParts(propertyName),
       'string', 'String', '""',
+      preference,
       serverSettings);
   }
 
@@ -296,6 +298,7 @@ var SpecifiedSettings serverSettings
   ): void {
     this.updateLeaf(propertyName, capitalizeParts(propertyName),
       'int', 'Int', '0',
+      preference,
       serverSettings);
   }
 
@@ -306,12 +309,14 @@ var SpecifiedSettings serverSettings
   ): void {
     this.updateLeaf(propertyName, capitalizeParts(propertyName),
       'bool', 'Bool', 'false',
+      preference,
       serverSettings);
   }
 
   protected updateLeaf(propertyName: string, capitalizedName: string,
     lcTypeName: string, capTypeName: string,
-    defaultValue: string, serverSettings: serverSettingsType) {
+    defaultValue: string, preference: yamlObject,
+    serverSettings: serverSettingsType) {
     const lastUCName = capitalize(lastName(propertyName));
     const lastLCName = uncapitalize(lastUCName);
 
@@ -321,7 +326,7 @@ var SpecifiedSettings serverSettings
       flagName:   capitalizedName,
       flagOption: propertyName,
       defaultValue,
-      usageNote:  '',
+      usageNote:  preference.usage ?? '',
       miscNote:   '',
     });
     this.fieldsToUpdate.push([propertyName, capitalizedName, lcTypeName]);
