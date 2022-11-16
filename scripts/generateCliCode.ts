@@ -33,6 +33,14 @@ interface commandType {
     defaultValue: string;
     usageNote: string;
     miscNote: string;
+    aliasFor: string;
+}
+
+interface commandLineOptionFields {
+  propertyName: string;
+  capitalizedName: string;
+  lcTypeName: string;
+  aliasFor: string;
 }
 
 type yamlObject = any; // Record<string, string|boolean|number|Record<string, any>>;
@@ -70,7 +78,7 @@ class Generator {
 
   serverSettings: Record<string, any>;
   updateCommonStartAndSetCommands: Array<commandType>;
-  fieldsToUpdate: Array<[string, string, string]>;
+  fieldsToUpdate: Array<commandLineOptionFields>;
 
   protected async loadInput(inputFile: string): Promise<string> {
     const contents = (await fs.promises.readFile(inputFile)).toString();
@@ -193,7 +201,18 @@ var SpecifiedSettings serverSettings
     fd.write(`func ${ functionName }(cmd *cobra.Command) {
 `);
     for (const command of this.updateCommonStartAndSetCommands) {
-      fd.write(`\tcmd.Flags().${ command.flagType }Var(&SpecifiedSettings.${ command.flagName }, "${ command.flagOption }", ${ command.defaultValue }, "${ command.usageNote }")\n`);
+      let usage = command.usageNote;
+
+      if (command.aliasFor) {
+        const aliasNote = `(Alias for --${ command.aliasFor }.)`;
+
+        if (usage === '') {
+          usage = aliasNote;
+        } else {
+          usage += ` ${ aliasNote }`;
+        }
+      }
+      fd.write(`\tcmd.Flags().${ command.flagType }Var(&SpecifiedSettings.${ command.flagName }, "${ command.flagOption }", ${ command.defaultValue }, "${ usage }")\n`);
     }
     fd.write(`}
 
@@ -204,7 +223,7 @@ var SpecifiedSettings serverSettings
     fd.write(`func ${ functionName }(flags *pflag.FlagSet) bool {
 \tchangedSomething := false
 `);
-    for (const [propertyName, capitalizedName] of this.fieldsToUpdate) {
+    for (const { propertyName, capitalizedName } of this.fieldsToUpdate) {
       fd.write(`\tif flags.Changed("${ propertyName }") {
 \t\tSpecifiedSettingsForJSON.${ capitalizedName } = &SpecifiedSettings.${ capitalizedName }
 \t\tchangedSomething = true
@@ -220,9 +239,11 @@ var SpecifiedSettings serverSettings
     fd.write(`func ${ functionName }(flags *pflag.FlagSet) []string {
 \tvar commandLineArgs []string
 `);
-    for (const [propertyName, capitalizedName, lcTypeName] of this.fieldsToUpdate) {
+    for (const { propertyName, capitalizedName, lcTypeName, aliasFor } of this.fieldsToUpdate) {
+      const actualPropertyName = aliasFor || propertyName;
+
       fd.write(`\tif flags.Changed("${ propertyName }") {\n`);
-      fd.write(`\t\tcommandLineArgs = append(commandLineArgs, "--${ propertyName }"`);
+      fd.write(`\t\tcommandLineArgs = append(commandLineArgs, "--${ actualPropertyName }"`);
       switch (lcTypeName) {
       case 'bool':
         fd.write(`+"="+strconv.FormatBool(SpecifiedSettings.${ capitalizedName })`);
@@ -319,17 +340,33 @@ var SpecifiedSettings serverSettings
     serverSettings: serverSettingsType) {
     const lastUCName = capitalize(lastName(propertyName));
     const lastLCName = uncapitalize(lastUCName);
-
-    serverSettings[lastUCName] = { type: lcTypeName, directive: `json:"${ lastLCName },omitempty"` };
-    this.updateCommonStartAndSetCommands.push({
+    const newCommand: yamlObject = {
       flagType:   capTypeName,
       flagName:   capitalizedName,
       flagOption: propertyName,
       defaultValue,
       usageNote:  preference.usage ?? '',
       miscNote:   '',
+      aliasFor:   '',
+    };
+
+    serverSettings[lastUCName] = { type: lcTypeName, directive: `json:"${ lastLCName },omitempty"` };
+    this.updateCommonStartAndSetCommands.push(newCommand);
+    this.fieldsToUpdate.push({
+      propertyName,
+      capitalizedName,
+      lcTypeName,
+      aliasFor: '',
     });
-    this.fieldsToUpdate.push([propertyName, capitalizedName, lcTypeName]);
+    for (const alias of preference.aliases ?? []) {
+      this.updateCommonStartAndSetCommands.push(Object.assign({}, newCommand, { flagOption: alias, aliasFor: propertyName }));
+      this.fieldsToUpdate.push({
+        propertyName: alias,
+        capitalizedName,
+        lcTypeName,
+        aliasFor: propertyName,
+      });
+    }
   }
 
   protected walkPropertyArray(propertyName: string): void {

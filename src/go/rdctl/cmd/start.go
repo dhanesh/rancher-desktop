@@ -23,11 +23,10 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
-	"strconv"
 	"strings"
 
-	"github.com/rancher-sandbox/rancher-desktop/src/go/rdctl/pkg/options/generated"
 	"github.com/rancher-sandbox/rancher-desktop/src/go/rdctl/pkg/directories"
+	"github.com/rancher-sandbox/rancher-desktop/src/go/rdctl/pkg/options/generated"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -52,7 +51,6 @@ var applicationPath string
 func init() {
 	rootCmd.AddCommand(startCmd)
 	options.UpdateCommonStartAndSetCommands(startCmd)
-	updateLegacyStartAndSetCommands(startCmd)
 	startCmd.Flags().StringVarP(&applicationPath, "path", "p", "", "Path to main executable.")
 }
 
@@ -83,19 +81,6 @@ func doStartOrSetCommand(cmd *cobra.Command) error {
 
 func doStartCommand(cmd *cobra.Command) error {
 	commandLineArgs := options.GetCommandLineArgsForStartCommand(cmd.Flags())
-
-	if cmd.Flags().Changed("container-engine") {
-		commandLineArgs = append(commandLineArgs, "--kubernetes-containerEngine", options.SpecifiedSettings.Kubernetes.ContainerEngine)
-	}
-	if cmd.Flags().Changed("kubernetes-enabled") {
-		commandLineArgs = append(commandLineArgs, "--kubernetes-enabled="+strconv.FormatBool(options.SpecifiedSettings.Kubernetes.Enabled))
-	}
-	if cmd.Flags().Changed("kubernetes-version") {
-		commandLineArgs = append(commandLineArgs, "--kubernetes-version", options.SpecifiedSettings.Kubernetes.Version)
-	}
-	if cmd.Flags().Changed("flannel-enabled") {
-		commandLineArgs = append(commandLineArgs, "--kubernetes-options-flannel"+strconv.FormatBool(options.SpecifiedSettings.Kubernetes.Options.Flannel))
-	}
 	if applicationPath == "" {
 		pathLookupFuncs := map[string]func(rdctlPath string) string{
 			"windows": getWindowsRDPath,

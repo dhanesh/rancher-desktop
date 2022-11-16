@@ -23,7 +23,6 @@ import (
 
 	"github.com/rancher-sandbox/rancher-desktop/src/go/rdctl/pkg/options/generated"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 // setCmd represents the set command
@@ -42,41 +41,10 @@ var setCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(setCmd)
 	options.UpdateCommonStartAndSetCommands(setCmd)
-	updateLegacyStartAndSetCommands(setCmd)
-}
-
-func updateLegacyStartAndSetCommands(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&options.SpecifiedSettings.Kubernetes.ContainerEngine, "container-engine", "", "Set engine to containerd or moby (aka docker).")
-	cmd.Flags().BoolVar(&options.SpecifiedSettings.Kubernetes.Enabled, "kubernetes-enabled", false, "Control whether kubernetes runs in the backend.")
-	cmd.Flags().StringVar(&options.SpecifiedSettings.Kubernetes.Version, "kubernetes-version", "", "Choose which version of kubernetes to run.")
-	cmd.Flags().BoolVar(&options.SpecifiedSettings.Kubernetes.Options.Flannel, "flannel-enabled", true, "Control whether flannel is enabled. Use to disable flannel so you can install your own CNI.")
-}
-
-func updateLegacyFieldsForJSON(flags *pflag.FlagSet) bool {
-	changedSomething := false
-	if flags.Changed("container-engine") {
-		options.SpecifiedSettingsForJSON.Kubernetes.ContainerEngine = &options.SpecifiedSettings.Kubernetes.ContainerEngine
-		changedSomething = true
-	}
-	if flags.Changed("kubernetes-enabled") {
-		options.SpecifiedSettingsForJSON.Kubernetes.Enabled = &options.SpecifiedSettings.Kubernetes.Enabled
-		changedSomething = true
-	}
-	if flags.Changed("kubernetes-version") {
-		options.SpecifiedSettingsForJSON.Kubernetes.Version = &options.SpecifiedSettings.Kubernetes.Version
-		changedSomething = true
-	}
-	if flags.Changed("flannel-enabled") {
-		options.SpecifiedSettingsForJSON.Kubernetes.Options.Flannel = &options.SpecifiedSettings.Kubernetes.Options.Flannel
-		changedSomething = true
-	}
-	return changedSomething
 }
 
 func doSetCommand(cmd *cobra.Command) error {
-	changedASharedField := options.UpdateFieldsForJSON(cmd.Flags())
-	changedALegacyField := updateLegacyFieldsForJSON(cmd.Flags())
-	if !changedASharedField && !changedALegacyField {
+	if !options.UpdateFieldsForJSON(cmd.Flags()) {
 		return fmt.Errorf("%s command: no settings to change were given", cmd.Name())
 	}
 	cmd.SilenceUsage = true
