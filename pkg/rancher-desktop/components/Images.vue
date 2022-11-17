@@ -95,7 +95,7 @@ export default {
     SortableTable,
     ImagesOutputWindow,
   },
-  props:      {
+  props: {
     images: {
       type:     Array,
       required: true,
@@ -125,7 +125,7 @@ export default {
 
   data() {
     return {
-      currentCommand:   null,
+      currentCommand: null,
       headers:
       [
         {

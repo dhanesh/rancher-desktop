@@ -22,7 +22,7 @@ export default Vue.extend({
     PreferencesBodyKubernetes,
     PreferencesAlert,
   },
-  props:      {
+  props: {
     currentNavItem: {
       type:     String,
       required: true,
