@@ -46,6 +46,7 @@ func init() {
 func doSetCommand(cmd *cobra.Command) error {
 	changedSomething, err := options.UpdateFieldsForJSON(cmd.Flags())
 	if err != nil {
+		cmd.SilenceUsage = true
 		return err
 	} else if !changedSomething {
 		return fmt.Errorf("%s command: no settings to change were given", cmd.Name())

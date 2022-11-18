@@ -1,0 +1,197 @@
+<%
+// EJS template
+// Run `npm run generate:cli-options` to update src/go/rdctl/pkg/options/generated/options.go
+
+
+function collectServerSettingsForJSON(settings, indent, lines) {
+  Object.keys(settings).forEach((propertyName) => {
+    collectServerSettingsForJSONProperty(propertyName, settings[propertyName], indent, lines);
+  });
+}
+
+function collectServerSettingsForJSONProperty(propertyName, settings, indent, lines) {
+  const decln = `${ indent }${ propertyName } `;
+
+  if (typeof (settings.type) === 'object') {
+    lines.push(`${ decln } struct {`);
+    collectServerSettingsForJSON(settings.type, `${ indent }  `, lines);
+    lines.push(`${ indent }} \`json:"${ uncapitalize(propertyName) }"\``);
+  } else {
+    lines.push(`${ decln } *${ settings.type } \`json:"${ uncapitalize(propertyName) },omitempty"\``);
+  }
+}
+
+function collectServerSettingsWithoutJSON(settings, indent, lines) {
+  Object.keys(settings).forEach((propertyName) => {
+    collectServerSettingsPropertyWithoutJSON(propertyName, settings[propertyName], indent, lines);
+  });
+}
+
+function collectServerSettingsPropertyWithoutJSON(propertyName, settings, indent, lines) {
+  const decln = `${ indent }${ propertyName } `;
+
+  if (typeof (settings.type) === 'object') {
+    lines.push(`${ decln } struct {`);
+    collectServerSettingsWithoutJSON(settings.type, `${ indent }  `, lines);
+    lines.push(`${ indent }}`);
+  } else {
+    lines.push(`${ decln } ${ settings.type }`);
+  }
+}
+
+function getUsageForCommand(command) {
+  const usageParts = [command.usageNote ?? ''];
+
+  if (command.enums) {
+    usageParts.push(`(Allowed values: [${ command.enums.join(', ')}].)`);
+  }
+  if (command.aliasFor) {
+    usageParts.push(`(Alias for --${ command.aliasFor }.)`);
+  }
+  return usageParts.join(' ').trim();
+}
+
+function getCommandLineArgValue(lcTypeName, capitalizedName) {
+  switch (lcTypeName) {
+  case 'bool':
+    return `+"="+strconv.FormatBool(SpecifiedSettings.${ capitalizedName })`;
+  case 'int':
+    return `, strconv.Itoa(SpecifiedSettings.${ capitalizedName })`;
+    break;
+  default:
+    return `, SpecifiedSettings.${ capitalizedName }`;
+  }
+}
+
+function uncapitalize(s) {
+  return s[0].toLowerCase() + s.substring(1);
+}
+
+function toGoStringsLiteral(values) {
+  return `[]string{${ values.map(s => JSON.stringify(s) ).join(', ') }}`;
+}
+
+function outputServerSettingsForJSON(serverSettings) {
+  const lines = [];
+
+  collectServerSettingsForJSON(serverSettings, '  ', lines);
+
+  return lines.join('\n');
+}
+
+function outputServerSettingsWithoutJSON(serverSettings) {
+  const lines = [];
+
+  collectServerSettingsWithoutJSON(serverSettings, '  ', lines);
+
+  return lines.join('\n');
+}
+
+%>
+/*
+Copyright © 2022 SUSE LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*** AUTO-GENERATED CODE!!!!
+ * To rebuild this file, run
+ * npm run generate:cli pkg/rancher-desktop/assets/specs/command-api.yaml src/go/rdctl/cmd/options.go
+ *
+ */
+
+package options
+
+import (
+	"fmt"
+	"strings"
+	"strconv"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+)
+
+type serverSettingsForJSON struct {
+  <%- outputServerSettingsForJSON(serverSettings); %>
+}
+
+var SpecifiedSettingsForJSON serverSettingsForJSON
+
+type serverSettings struct {
+  <%- outputServerSettingsWithoutJSON(serverSettings); %>
+}
+
+var SpecifiedSettings serverSettings
+
+func enumStringCheck(option string, specified string, allowedValues []string) error {
+	numVals := len(allowedValues)
+	singleQuotedAllowedValues := make([]string, numVals)
+	for i, val := range allowedValues {
+		if specified == val {
+			return nil
+		}
+	  singleQuotedAllowedValues[i] = fmt.Sprintf("'%s'", val)
+	}
+	var allowedString string
+	if len(allowedValues) == 1 {
+	  allowedString = singleQuotedAllowedValues[0]
+	} else if len(allowedValues) == 2 {
+	  allowedString = strings.Join(singleQuotedAllowedValues, " or ")
+	} else {
+	  firstPart := strings.Join(singleQuotedAllowedValues[:numVals - 1], ", ")
+	  allowedString = fmt.Sprintf("%s, or %s", firstPart,  singleQuotedAllowedValues[numVals - 1])
+	}
+	return fmt.Errorf(`invalid value for option %s: <"%s">; must be %s`, option, specified, allowedString)
+}
+
+func UpdateCommonStartAndSetCommands(cmd *cobra.Command) {
+  <%_ for (command of updateCommonStartAndSetCommands) {
+    const usage = getUsageForCommand(command); _%>
+    cmd.Flags().<%- command.flagType %>Var(&SpecifiedSettings.<%- command.flagName %>, "<%- command.flagOption %>", <%- command.defaultValue %>, "<%- usage %>")
+  <%_ } _%>
+}
+
+func UpdateFieldsForJSON(flags *pflag.FlagSet) (bool, error) {
+	changedSomething := false
+	<%_ for (const { propertyName, capitalizedName, enums }  of fieldsToUpdate) { _%>
+	  if flags.Changed("<%- propertyName %>") {
+	    <%_ if (enums) { _%>
+        if err := enumStringCheck("--<%- propertyName %>", SpecifiedSettings.<%- capitalizedName %>, <%- toGoStringsLiteral(enums) %>) ; err != nil {
+          return changedSomething, err
+        }
+	    <%_ } _%>
+	    SpecifiedSettingsForJSON.<%- capitalizedName %> = &SpecifiedSettings.<%- capitalizedName %>
+	    changedSomething = true
+    }
+  <% } %>
+	return changedSomething, nil
+}
+
+func GetCommandLineArgsForStartCommand(flags *pflag.FlagSet) ([]string, error) {
+	var commandLineArgs []string
+  <%_ for (const { propertyName, capitalizedName, lcTypeName, aliasFor, enums } of fieldsToUpdate) {
+      const actualPropertyName = aliasFor || propertyName;
+  _%>
+    if flags.Changed("<%- propertyName %>") {
+	    <%_ if (enums) { _%>
+        if err := enumStringCheck("--<%- propertyName %>", SpecifiedSettings.<%- capitalizedName %>, <%- toGoStringsLiteral(enums) %>) ; err != nil {
+          return commandLineArgs, err
+        }
+	    <%_ }
+	    const valuePart = getCommandLineArgValue(lcTypeName, capitalizedName);
+	    _%>
+      commandLineArgs = append(commandLineArgs, "--<%- actualPropertyName %>"<%- valuePart %>)
+    }
+  <% } %>
+	return commandLineArgs, nil
+}

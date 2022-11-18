@@ -265,7 +265,7 @@ components:
               type: integer
             containerEngine:
               type: string
-              enum: ['containerd', 'moby', 'docker']
+              enum: ['containerd', 'docker', 'moby']
               usage: Set engine to containerd or moby (aka docker).
               aliases:
                 - "container-engine"

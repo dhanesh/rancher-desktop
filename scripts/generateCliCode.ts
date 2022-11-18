@@ -24,6 +24,7 @@ limitations under the License.
 import fs from 'fs';
 import path from 'path';
 
+import ejs from 'ejs';
 import yaml from 'yaml';
 
 interface commandType {
@@ -93,7 +94,7 @@ class Generator {
     }
   }
 
-  protected generateOutput(obj: yamlObject, inputFile: string): void {
+  protected processInput(obj: yamlObject, inputFile: string): void {
     const preferences = obj.components.schemas.preferences;
 
     if (!preferences) {
@@ -106,189 +107,36 @@ class Generator {
     }
   }
 
-  protected async emitOutput(outputFile: string): Promise<void> {
-    let fd: any; // fs.WriteStream|fs.WriteStream & { fd: 1 };
+  protected emitOutput(outputFile: string): void {
+    const options = { rmWhitespace: false };
+    const templateFile = 'scripts/assets/options.go.templ';
+    const data: Record<string, any> = {
+      serverSettings:                  this.serverSettings,
+      updateCommonStartAndSetCommands: this.updateCommonStartAndSetCommands,
+      fieldsToUpdate:                  this.fieldsToUpdate,
+    };
 
-    if (outputFile !== '-') {
-      const parent = path.dirname(outputFile);
+    ejs.renderFile(templateFile, data, options).then(async(renderedContent: string) => {
+      if (outputFile === '-') {
+        console.log(renderedContent);
+      } else {
+        const parent = path.dirname(outputFile);
 
-      try {
-        await fs.promises.access(parent, fs.constants.W_OK | fs.constants.X_OK);
-      } catch (ex: any) {
-        if (ex.code === 'ENOENT') {
-          console.log(`Creating directory ${ parent }...`);
-          await fs.promises.mkdir(parent, { recursive: true });
-        } else {
-          throw ex;
+        try {
+          await fs.promises.access(parent, fs.constants.W_OK | fs.constants.X_OK);
+        } catch (ex: any) {
+          if (ex.code === 'ENOENT') {
+            console.log(`Creating directory ${ parent }...`);
+            await fs.promises.mkdir(parent, { recursive: true });
+          } else {
+            throw ex;
+          }
         }
+        await fs.promises.writeFile(outputFile, renderedContent);
       }
-      fd = fs.createWriteStream(outputFile, {
-        encoding: 'utf8',
-        mode:     0o600,
-      });
-    } else {
-      fd = process.stdout;
-    }
-
-    fd.write(copyrightBlock);
-    fd.write(howGeneratedBlock);
-    fd.write(`
-package options
-
-import (
-\t"strconv"
-
-\t"github.com/spf13/cobra"
-\t"github.com/spf13/pflag"
-)
-
-type serverSettingsForJSON struct {
-`);
-    this.emitServerSettingsForJSON(fd, this.serverSettings, '\t');
-    fd.write(`}
-
-var SpecifiedSettingsForJSON serverSettingsForJSON
-
-type serverSettings struct {
-`);
-    this.emitServerSettingsWithoutJSON(fd, this.serverSettings, '\t');
-    fd.write(`}
-
-var SpecifiedSettings serverSettings
-
-func enumStringCheck(option string, specified string, allowedValues []string) error {
-  for _, val := range allowedValues {
-    if specified == val {
-      return nil
-    }
-  }
-  return fmt.Errorf("invalid value for option %s: %s; not one of %v", option, specified, allowedValues)
-}
-
-`);
-    this.emitOptionsSpecifications(fd, 'UpdateCommonStartAndSetCommands');
-    this.emitYamlStructUpdates(fd, 'UpdateFieldsForJSON');
-    this.emitStartCommandLineArgsBuilder(fd, 'GetCommandLineArgsForStartCommand');
-    if (outputFile !== '-') {
-      fd.close();
-    }
-  }
-
-  protected emitServerSettingsForJSON(fd: fs.WriteStream, settings: Record<string, any>, indent: string): void {
-    for (const propertyName in settings) {
-      this.emitServerSettingsForJSONProperty(fd, propertyName, settings[propertyName], indent);
-    }
-  }
-
-  protected emitServerSettingsForJSONProperty(fd: fs.WriteStream, propertyName: string, settings: Record<string, any>, indent: string) {
-    fd.write(`${ indent }${ propertyName } `);
-    if (typeof (settings.type) === 'object') {
-      fd.write(`struct {\n`);
-      this.emitServerSettingsForJSON(fd, settings.type, `${ indent }\t`);
-      fd.write(`${ indent }} \`json:"${ uncapitalize(propertyName) }"\`\n`);
-    } else {
-      fd.write(`*${ settings.type } \`json:"${ uncapitalize(propertyName) },omitempty"\`\n`);
-    }
-  }
-
-  protected emitServerSettingsWithoutJSON(fd: fs.WriteStream, settings: Record<string, any>, indent: string): void {
-    for (const propertyName in settings) {
-      this.emitServerSettingsPropertyWithoutJSON(fd, propertyName, settings[propertyName], indent);
-    }
-  }
-
-  protected emitServerSettingsPropertyWithoutJSON(fd: fs.WriteStream, propertyName: string, settings: Record<string, any>, indent: string) {
-    fd.write(`${ indent }${ propertyName } `);
-    if (typeof (settings.type) === 'object') {
-      fd.write(`struct {\n`);
-      this.emitServerSettingsWithoutJSON(fd, settings.type, `${ indent }\t`);
-      fd.write(`${ indent }}\n`);
-    } else {
-      fd.write(`${ settings.type }\n`);
-    }
-  }
-
-  protected emitOptionsSpecifications(fd: fs.WriteStream, functionName: string): void {
-    fd.write(`func ${ functionName }(cmd *cobra.Command) {
-`);
-    for (const command of this.updateCommonStartAndSetCommands) {
-      const usageParts = [command.usageNote ?? ''];
-
-      if (command.enums) {
-        usageParts.push(`(Allowed values: [${ command.enums.join(', ')}].)`);
-      }
-      if (command.aliasFor) {
-        usageParts.push(`(Alias for --${ command.aliasFor }.)`);
-      }
-      const usage = usageParts.join(' ').trim();
-      fd.write(`\tcmd.Flags().${ command.flagType }Var(&SpecifiedSettings.${ command.flagName }, "${ command.flagOption }", ${ command.defaultValue }, "${ usage }")\n`);
-    }
-    fd.write(`}
-
-`);
-  }
-
-  protected toGoStringsLiteral(values: string[]): string {
-    return `[]string{${ values.map(s => JSON.stringify(s) ).join(', ') }}`;
-  }
-
-  protected emitYamlStructUpdates(fd: fs.WriteStream, functionName: string): void {
-    fd.write(`func ${ functionName }(flags *pflag.FlagSet) (bool, error) {
-\tchangedSomething := false
-`);
-    for (const { propertyName, capitalizedName, enums } of this.fieldsToUpdate) {
-      fd.write(`\tif flags.Changed("${ propertyName }") {`);
-      if (enums) {
-        // enumStringCheck(option: string, specified: string, allowedValues: []string) error {
-        fd.write(`
-\t\tif err := enumStringCheck("--${ propertyName }", SpecifiedSettings.${ capitalizedName }, ${ this.toGoStringsLiteral(enums) }) ; err != nil {
-\t\t\treturn changedSomething, err
-\t\t}`);
-      }
-      fd.write(`
-\t\tSpecifiedSettingsForJSON.${ capitalizedName } = &SpecifiedSettings.${ capitalizedName }
-\t\tchangedSomething = true
-\t}
-`);
-    }
-    fd.write(`\treturn changedSomething, nil
-}
-`);
-  }
-
-  protected emitStartCommandLineArgsBuilder(fd: fs.WriteStream, functionName: string): void {
-    fd.write(`func ${ functionName }(flags *pflag.FlagSet) ([]string, error) {
-\tvar commandLineArgs []string
-`);
-    for (const { propertyName, capitalizedName, lcTypeName, aliasFor, enums } of this.fieldsToUpdate) {
-      const actualPropertyName = aliasFor || propertyName;
-
-      fd.write(`\tif flags.Changed("${ propertyName }") {\n`);
-      if (enums) {
-        // enumStringCheck(option: string, specified: string, allowedValues: []string) error {
-        fd.write(`\t\tif err := enumStringCheck("--${ propertyName }", SpecifiedSettings.${ capitalizedName }, ${ this.toGoStringsLiteral(enums) }) ; err != nil {
-    \t\t\treturn commandLineArgs, err
-    \t\t}
-`);
-      }
-      fd.write(`\t\tcommandLineArgs = append(commandLineArgs, "--${ actualPropertyName }"`);
-      switch (lcTypeName) {
-      case 'bool':
-        fd.write(`+"="+strconv.FormatBool(SpecifiedSettings.${ capitalizedName })`);
-        break;
-      case 'int':
-        fd.write(`, strconv.Itoa(SpecifiedSettings.${ capitalizedName })`);
-        break;
-      default:
-        fd.write(`, SpecifiedSettings.${ capitalizedName }`);
-      }
-      fd.write(`)
-\t}
-`);
-    }
-    fd.write(`\treturn commandLineArgs, nil
-}
-`);
+    }).catch((err: any) => {
+      console.error(err);
+    });
   }
 
   protected walkProperty(propertyName: string, preference: yamlObject, serverSettings: yamlObject): void {
@@ -394,8 +242,8 @@ func enumStringCheck(option string, specified string, allowedValues []string) er
         propertyName: alias,
         capitalizedName,
         lcTypeName,
-        aliasFor: propertyName,
-        enums:      preference.enum,
+        aliasFor:     propertyName,
+        enums:        preference.enum,
       });
     }
   }
@@ -410,8 +258,8 @@ func enumStringCheck(option string, specified string, allowedValues []string) er
     }
     const obj = await this.loadInput(argv[0]);
 
-    this.generateOutput(obj, argv[0]);
-    await this.emitOutput(argv[1] ?? '-');
+    this.processInput(obj, argv[0]);
+    this.emitOutput(argv[1] ?? '-');
   }
 }
 
@@ -425,29 +273,3 @@ if (idx === -1) {
   console.error(e);
   process.exit(1);
 });
-
-const howGeneratedBlock = `/*** AUTO-GENERATED CODE!!!!
- * To rebuild this file, run
- * npm run generate:cli pkg/rancher-desktop/assets/specs/command-api.yaml src/go/rdctl/cmd/options.go
- *
- */
-
-`;
-
-const copyrightBlock = `/*
-Copyright © 2022 SUSE LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-`;

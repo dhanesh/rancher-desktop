@@ -675,10 +675,10 @@ test.describe('Command server', () => {
           stdout, stderr, error,
         }).toEqual({
           error:  expect.any(Error),
-          stderr: expect.stringContaining(`Invalid value for kubernetes.containerEngine: <"${ myEngine }">; must be 'containerd', 'docker', or 'moby'`),
+          stderr: expect.stringContaining(`invalid value for option --container-engine: <"${ myEngine }">; must be 'containerd', 'docker', or 'moby'`),
           stdout: '',
         });
-        expect(stderr).toContain('Error: errors in attempt to update settings:');
+        expect(stderr).not.toContain('Error: errors in attempt to update settings:');
         expect(stderr).not.toContain('Usage:');
       });
 
