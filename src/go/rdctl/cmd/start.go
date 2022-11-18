@@ -80,7 +80,10 @@ func doStartOrSetCommand(cmd *cobra.Command) error {
 }
 
 func doStartCommand(cmd *cobra.Command) error {
-	commandLineArgs := options.GetCommandLineArgsForStartCommand(cmd.Flags())
+	commandLineArgs, err := options.GetCommandLineArgsForStartCommand(cmd.Flags())
+	if err != nil {
+		return err
+	}
 	if applicationPath == "" {
 		pathLookupFuncs := map[string]func(rdctlPath string) string{
 			"windows": getWindowsRDPath,

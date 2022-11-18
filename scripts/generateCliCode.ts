@@ -34,6 +34,7 @@ interface commandType {
     usageNote: string;
     miscNote: string;
     aliasFor: string;
+    enums: string[] | undefined;
 }
 
 interface commandLineOptionFields {
@@ -41,6 +42,7 @@ interface commandLineOptionFields {
   capitalizedName: string;
   lcTypeName: string;
   aliasFor: string;
+  enums: string[] | undefined;
 }
 
 type yamlObject = any; // Record<string, string|boolean|number|Record<string, any>>;
@@ -154,6 +156,15 @@ type serverSettings struct {
 
 var SpecifiedSettings serverSettings
 
+func enumStringCheck(option string, specified string, allowedValues []string) error {
+  for _, val := range allowedValues {
+    if specified == val {
+      return nil
+    }
+  }
+  return fmt.Errorf("invalid value for option %s: %s; not one of %v", option, specified, allowedValues)
+}
+
 `);
     this.emitOptionsSpecifications(fd, 'UpdateCommonStartAndSetCommands');
     this.emitYamlStructUpdates(fd, 'UpdateFieldsForJSON');
@@ -201,17 +212,15 @@ var SpecifiedSettings serverSettings
     fd.write(`func ${ functionName }(cmd *cobra.Command) {
 `);
     for (const command of this.updateCommonStartAndSetCommands) {
-      let usage = command.usageNote;
+      const usageParts = [command.usageNote ?? ''];
 
-      if (command.aliasFor) {
-        const aliasNote = `(Alias for --${ command.aliasFor }.)`;
-
-        if (usage === '') {
-          usage = aliasNote;
-        } else {
-          usage += ` ${ aliasNote }`;
-        }
+      if (command.enums) {
+        usageParts.push(`(Allowed values: [${ command.enums.join(', ')}].)`);
       }
+      if (command.aliasFor) {
+        usageParts.push(`(Alias for --${ command.aliasFor }.)`);
+      }
+      const usage = usageParts.join(' ').trim();
       fd.write(`\tcmd.Flags().${ command.flagType }Var(&SpecifiedSettings.${ command.flagName }, "${ command.flagOption }", ${ command.defaultValue }, "${ usage }")\n`);
     }
     fd.write(`}
@@ -219,30 +228,49 @@ var SpecifiedSettings serverSettings
 `);
   }
 
+  protected toGoStringsLiteral(values: string[]): string {
+    return `[]string{${ values.map(s => JSON.stringify(s) ).join(', ') }}`;
+  }
+
   protected emitYamlStructUpdates(fd: fs.WriteStream, functionName: string): void {
-    fd.write(`func ${ functionName }(flags *pflag.FlagSet) bool {
+    fd.write(`func ${ functionName }(flags *pflag.FlagSet) (bool, error) {
 \tchangedSomething := false
 `);
-    for (const { propertyName, capitalizedName } of this.fieldsToUpdate) {
-      fd.write(`\tif flags.Changed("${ propertyName }") {
+    for (const { propertyName, capitalizedName, enums } of this.fieldsToUpdate) {
+      fd.write(`\tif flags.Changed("${ propertyName }") {`);
+      if (enums) {
+        // enumStringCheck(option: string, specified: string, allowedValues: []string) error {
+        fd.write(`
+\t\tif err := enumStringCheck("--${ propertyName }", SpecifiedSettings.${ capitalizedName }, ${ this.toGoStringsLiteral(enums) }) ; err != nil {
+\t\t\treturn changedSomething, err
+\t\t}`);
+      }
+      fd.write(`
 \t\tSpecifiedSettingsForJSON.${ capitalizedName } = &SpecifiedSettings.${ capitalizedName }
 \t\tchangedSomething = true
 \t}
 `);
     }
-    fd.write(`\treturn changedSomething
+    fd.write(`\treturn changedSomething, nil
 }
 `);
   }
 
   protected emitStartCommandLineArgsBuilder(fd: fs.WriteStream, functionName: string): void {
-    fd.write(`func ${ functionName }(flags *pflag.FlagSet) []string {
+    fd.write(`func ${ functionName }(flags *pflag.FlagSet) ([]string, error) {
 \tvar commandLineArgs []string
 `);
-    for (const { propertyName, capitalizedName, lcTypeName, aliasFor } of this.fieldsToUpdate) {
+    for (const { propertyName, capitalizedName, lcTypeName, aliasFor, enums } of this.fieldsToUpdate) {
       const actualPropertyName = aliasFor || propertyName;
 
       fd.write(`\tif flags.Changed("${ propertyName }") {\n`);
+      if (enums) {
+        // enumStringCheck(option: string, specified: string, allowedValues: []string) error {
+        fd.write(`\t\tif err := enumStringCheck("--${ propertyName }", SpecifiedSettings.${ capitalizedName }, ${ this.toGoStringsLiteral(enums) }) ; err != nil {
+    \t\t\treturn commandLineArgs, err
+    \t\t}
+`);
+      }
       fd.write(`\t\tcommandLineArgs = append(commandLineArgs, "--${ actualPropertyName }"`);
       switch (lcTypeName) {
       case 'bool':
@@ -258,7 +286,7 @@ var SpecifiedSettings serverSettings
 \t}
 `);
     }
-    fd.write(`\treturn commandLineArgs
+    fd.write(`\treturn commandLineArgs, nil
 }
 `);
   }
@@ -348,6 +376,7 @@ var SpecifiedSettings serverSettings
       usageNote:  preference.usage ?? '',
       miscNote:   '',
       aliasFor:   '',
+      enums:      preference.enum,
     };
 
     serverSettings[lastUCName] = { type: lcTypeName, directive: `json:"${ lastLCName },omitempty"` };
@@ -357,6 +386,7 @@ var SpecifiedSettings serverSettings
       capitalizedName,
       lcTypeName,
       aliasFor: '',
+      enums:      preference.enum,
     });
     for (const alias of preference.aliases ?? []) {
       this.updateCommonStartAndSetCommands.push(Object.assign({}, newCommand, { flagOption: alias, aliasFor: propertyName }));
@@ -365,6 +395,7 @@ var SpecifiedSettings serverSettings
         capitalizedName,
         lcTypeName,
         aliasFor: propertyName,
+        enums:      preference.enum,
       });
     }
   }
