@@ -13,6 +13,7 @@ jobs:
     env:
       shell: pwsh
       SECRET: ${{ secrets.WIN11PRV_USERPASS }}
+      HOME: C:/Users/tuctuc
     steps:
       - name: Remove Rancher Desktop distros from WSL
         continue-on-error: true
@@ -84,7 +85,7 @@ jobs:
         if: failure()
         with:
           name: e2etest-artifacts
-          path: ./e2e/reports-win11
+          path: $HOME/work/rancher-desktop/rancher-desktop/e2e/reports-win11
       - name: Uninstall Privileged Services
         run: |
           Start-Process -FilePath "$HOME/work/rancher-desktop/rancher-desktop/build/uninstall-privileged-service.ps1" -Verb runAs
