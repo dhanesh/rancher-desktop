@@ -1,0 +1,90 @@
+name: e2e tests on Windows
+
+on:
+  push:
+    branches:
+        win11-ci
+
+jobs:
+
+  e2e-tests:
+    timeout-minutes: 90
+    runs-on: [self-hosted, x64, win11]
+    env:
+      shell: pwsh
+      SECRET: ${{ secrets.WIN11PRV_USERPASS }}
+    steps:
+      - name: Remove Rancher Desktop distros from WSL
+        continue-on-error: true
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          wsl --unregister rancher-desktop
+          wsl --unregister rancher-desktop-data
+      - name: Cleanup Test Environment
+        continue-on-error: true
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          if (Test-Path "$HOME/AppData/Local/rancher-desktop") {
+            Remove-Item -Path "$HOME/AppData/Local/rancher-desktop" -Recurse -Force
+          }
+          if (Test-Path "$HOME/AppData/Local/rancher-desktop") {
+            Remove-Item -Path "$HOME/AppData/Local/rancher-desktop" -Recurse -Force
+          }
+          if (Test-Path "$HOME/AppData/Roaming/rancher-desktop") {
+            Remove-Item -Path "$HOME/AppData/Roaming/rancher-desktop" -Recurse -Force
+          }
+      - name: Checkout repository
+        run:
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          mkdir "$HOME/work/rancher-desktop" -Recurse -Force
+          cd "$HOME/work/rancher-desktop"
+          git clone https://github.com/rancher-sandbox/rancher-desktop.git
+      - name: Install Scoop
+        continue-on-error: true
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          iwr -useb get.scoop.sh | iex
+      - name: Install Project Dependencies
+        continue-on-error: true
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          scoop config USE_LESSMSI true
+          scoop install git go@1.18 nvm@16.18.1 python unzip
+      - name: Install node dependencies
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          cd "$HOME/work/rancher-desktop"
+          npm install
+      - name: Run e2e Tests
+        continue-on-error: false
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          cd "$HOME/work/rancher-desktop"
+          npm run test:e2e
+      - name: Failed tests
+        if: failure()
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+          cd "$HOME/work/rancher-desktop/rancher-desktop"
+          if (Test-Path "./e2e/reports-win11") {
+            Write-Host "Directory already exists. Not creating new one..."
+          } else {
+            New-Item -Path "./e2e/reports-win11" -Force -ItemType Directory
+          }
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: e2etest-artifacts
+          path: ./e2e/reports-win11
+      - name: Uninstall Privileged Services
+        run: |
+          Start-Process -FilePath "$HOME/work/rancher-desktop/rancher-desktop/build/uninstall-privileged-service.ps1" -Verb runAs
