@@ -38,7 +38,7 @@ jobs:
           }
       - name: Checkout repository
         run:
-          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
+          PsExec64.exe -i -u "CHIVO/chivo" -p "$SECRET" -accepteula PowerShell.exe
           Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
           mkdir "$HOME/work/rancher-desktop" -Recurse -Force
           cd "$HOME/work/rancher-desktop"
