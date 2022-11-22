@@ -43,7 +43,7 @@ jobs:
         run: |
           PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
           Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
-          mkdir "$HOME/work/rancher-desktop" -Recurse -Force
+          mkdir "$HOME/work/rancher-desktop" -Force
           cd "$HOME/work/rancher-desktop"
           git clone https://github.com/rancher-sandbox/rancher-desktop.git
       - name: Install Scoop
