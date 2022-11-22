@@ -36,9 +36,12 @@ jobs:
           if (Test-Path "$HOME/AppData/Roaming/rancher-desktop") {
             Remove-Item -Path "$HOME/AppData/Roaming/rancher-desktop" -Recurse -Force
           }
+          if (Test-Path "$HOME/work/rancher-desktop") {
+            Remove-Item -Path "$HOME/work/rancher-desktop" -Recurse -Force
+          }
       - name: Checkout repository
-        run:
-          PsExec64.exe -i -u "CHIVO/chivo" -p "$SECRET" -accepteula PowerShell.exe
+        run: |
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
           Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
           mkdir "$HOME/work/rancher-desktop" -Recurse -Force
           cd "$HOME/work/rancher-desktop"
