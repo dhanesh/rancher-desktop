@@ -53,6 +53,7 @@ jobs:
           scoop config USE_LESSMSI true
           scoop install git go@1.18 nvm python unzip
           echo $env:PATH
+          echo $env:USERPROFILE
       - name: Install node
         run: |
           echo $env:PATH
