@@ -52,8 +52,10 @@ jobs:
           Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
           scoop config USE_LESSMSI true
           scoop install git go@1.18 nvm python unzip
+          echo $env:PATH
       - name: Install node
         run: |
+          echo $env:PATH
           nvm install 16.13
           nvm use 16.13
       - name: Install node dependencies
