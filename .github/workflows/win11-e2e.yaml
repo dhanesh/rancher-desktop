@@ -59,6 +59,7 @@ jobs:
           Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
           scoop config USE_LESSMSI true
           scoop install git go@1.18 nvm@16.18.1 python unzip
+          nvm use 16.18.1
       - name: Install node dependencies
         run: |
           PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe
