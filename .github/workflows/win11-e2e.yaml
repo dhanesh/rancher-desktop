@@ -17,39 +17,29 @@ jobs:
     steps:
       - name: Remove Rancher Desktop distros from WSL
         continue-on-error: true
-        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;wsl --unregister rancher-desktop;wsl --unregister rancher-desktop-data"
+        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula unregister-wsl.ps1
 
       - name: Cleanup Test Environment
         continue-on-error: true
-        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;Remove-Item -Path $HOME/AppData/Local/rancher-desktop -Recurse -Force -ErrorAction Ignore;Remove-Item -Path $HOME/AppData/Local/rancher-desktop -Recurse -Force -ErrorAction Ignore;Remove-Item -Path $HOME/AppData/Roaming/rancher-desktop -Recurse -Force -ErrorAction Ignore;Remove-Item -Path $HOME/work/rancher-desktop -Recurse -Force -ErrorAction Ignore"
+        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula clean-test-env.ps1
       - name: Install Scoop
         continue-on-error: true
-        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;iwr -useb get.scoop.sh | iex"
+        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula install-scoop.ps1
       - name: Install Project Dependencies
         continue-on-error: true
         run: |
-          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;scoop config USE_LESSMSI true;scoop install git go@1.18 nvm python unzip"
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula install-project-dependencies.ps1
       - name: Install node
-        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;nvm install 16.13;nvm use 16.13"
+        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula install-node.ps1
+      - name: Setup node
+        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula setup-node.ps1
       - name: Install node dependencies
         run: |
-          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;cd $HOME/work/rancher-desktop;npm install"
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula install-node-mod.ps1
       - name: Checkout repository
         run: |
-          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;mkdir $HOME/work/rancher-desktop -Force;cd $HOME/work/rancher-desktop;git clone https://github.com/rancher-sandbox/rancher-desktop.git"
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula checkout-repo.ps1
       - name: Run e2e Tests
         continue-on-error: false
         run: |
-          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;cd $HOME/work/rancher-desktop;npm run test:e2e"
-      - name: Failed tests
-        if: failure()
-        run: |
-          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;cd $HOME/work/rancher-desktop/rancher-desktop;New-Item -Path "./e2e/reports-win11" -Force -ItemType Directory -ErrorAction Ignore"
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: e2etest-artifacts
-          path: $HOME/work/rancher-desktop/rancher-desktop/e2e/reports-win11
-      - name: Uninstall Privileged Services
-        run: PsExec64.exe -i -u chivo -p "$SECRET" -accepteula PowerShell.exe -Command "Set-ExecutionPolicy Bypass -Scope CurrentUser -Force;Start-Process -FilePath $HOME/work/rancher-desktop/rancher-desktop/build/uninstall-privileged-service.ps1 -Verb runAs"
+          PsExec64.exe -i -u chivo -p "$SECRET" -accepteula run-e2e-tests.ps1
